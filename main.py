@@ -715,12 +715,37 @@ async def on_command_completion(ctx):
 
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def welcome(ctx, channel: discord.TextChannel = None):
-    channel = channel or ctx.channel
-    
+async def autorole(ctx, role: discord.Role = None):
+    if role is None:
+        # Afficher le rôle actuel si aucun rôle fourni
+        if os.path.exists("autorole.json"):
+            with open("autorole.json", "r") as f:
+                try:
+                    data = json.load(f)
+                except json.JSONDecodeError:
+                    data = {}
+            role_id = data.get(str(ctx.guild.id))
+            if role_id:
+                current_role = ctx.guild.get_role(role_id)
+                if current_role:
+                    embed = discord.Embed(
+                        title="Configuration Autorole",
+                        description=f"Le rôle automatique actuel est {current_role.mention}",
+                        color=discord.Color.blue()
+                    )
+                    await ctx.send(embed=embed)
+                    return
+        embed = discord.Embed(
+            title="Configuration Autorole",
+            description="Aucun autorole configuré. Utilisation : `!autorole @role`",
+            color=discord.Color.red()
+        )
+        await ctx.send(embed=embed)
+        return
+
     # Charger les données existantes ou créer un dictionnaire vide
-    if os.path.exists("welcome.json"):
-        with open("welcome.json", "r") as f:
+    if os.path.exists("autorole.json"):
+        with open("autorole.json", "r") as f:
             try:
                 data = json.load(f)
             except json.JSONDecodeError:
@@ -728,21 +753,66 @@ async def welcome(ctx, channel: discord.TextChannel = None):
     else:
         data = {}
 
-    # Enregistrer l'ID du salon pour ce serveur
-    data[str(ctx.guild.id)] = channel.id
+    # Enregistrer l'ID du rôle pour ce serveur
+    data[str(ctx.guild.id)] = role.id
 
-    with open("welcome.json", "w") as f:
+    with open("autorole.json", "w") as f:
         json.dump(data, f, indent=4)
 
     embed = discord.Embed(
-        title="Configuration Bienvenue",
-        description=f"Le salon de bienvenue a été configuré sur {channel.mention}",
+        title="Configuration Autorole",
+        description=f"Le rôle automatique a été configuré sur {role.mention}",
         color=discord.Color.green()
     )
     await ctx.send(embed=embed)
-    
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def autorole_remove(ctx):
+    if not os.path.exists("autorole.json"):
+        await ctx.send("Aucun autorole configuré.")
+        return
+
+    with open("autorole.json", "r") as f:
+        try:
+            data = json.load(f)
+        except json.JSONDecodeError:
+            data = {}
+
+    if str(ctx.guild.id) in data:
+        del data[str(ctx.guild.id)]
+        with open("autorole.json", "w") as f:
+            json.dump(data, f, indent=4)
+
+    embed = discord.Embed(
+        title="Configuration Autorole",
+        description="L'autorole a été supprimé.",
+        color=discord.Color.orange()
+    )
+    await ctx.send(embed=embed)
+
 @bot.event
 async def on_member_join(member):
+    # --- Autorole ---
+    if os.path.exists("autorole.json"):
+        with open("autorole.json", "r") as f:
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError:
+                data = {}
+
+        role_id = data.get(str(member.guild.id))
+        if role_id:
+            role = member.guild.get_role(role_id)
+            if role:
+                try:
+                    await member.add_roles(role, reason="Autorole")
+                except discord.Forbidden:
+                    print(f"Erreur autorole: permissions insuffisantes pour {member.guild.name}")
+                except Exception as e:
+                    print(f"Erreur autorole: {e}")
+
+    # --- Welcome (existant) ---
     if not os.path.exists("welcome.json"):
         return
 
@@ -761,12 +831,41 @@ async def on_member_join(member):
         return
 
     try:
-        # Ligne qui posait problème : vérifie bien l'alignement ici
         msg = await channel.send(f"{member.mention}")
         await asyncio.sleep(0.1)
         await msg.delete()
     except Exception as e:
         print(f"Erreur welcome: {e}")
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def welcome_remove(ctx):
+    if not os.path.exists("welcome.json"):
+        embed = discord.Embed(
+            title="Configuration Bienvenue",
+            description="Aucun salon de bienvenue configuré.",
+            color=discord.Color.red()
+        )
+        await ctx.send(embed=embed)
+        return
+
+    with open("welcome.json", "r") as f:
+        try:
+            data = json.load(f)
+        except json.JSONDecodeError:
+            data = {}
+
+    if str(ctx.guild.id) in data:
+        del data[str(ctx.guild.id)]
+        with open("welcome.json", "w") as f:
+            json.dump(data, f, indent=4)
+
+    embed = discord.Embed(
+        title="Configuration Bienvenue",
+        description="Le salon de bienvenue a été supprimé.",
+        color=discord.Color.orange()
+    )
+    await ctx.send(embed=embed)
 
 
 @bot.command()
