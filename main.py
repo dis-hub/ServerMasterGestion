@@ -867,6 +867,60 @@ async def welcome_remove(ctx):
     )
     await ctx.send(embed=embed)
 
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def welcome(ctx, channel: discord.TextChannel = None):
+    channel = channel or ctx.channel
+    
+    # Charger les données existantes ou créer un dictionnaire vide
+    if os.path.exists("welcome.json"):
+        with open("welcome.json", "r") as f:
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError:
+                data = {}
+    else:
+        data = {}
+
+    # Enregistrer l'ID du salon pour ce serveur
+    data[str(ctx.guild.id)] = channel.id
+
+    with open("welcome.json", "w") as f:
+        json.dump(data, f, indent=4)
+
+    embed = discord.Embed(
+        title="Configuration Bienvenue",
+        description=f"Le salon de bienvenue a été configuré sur {channel.mention}",
+        color=discord.Color.green()
+    )
+    await ctx.send(embed=embed)
+    
+@bot.event
+async def on_member_join(member):
+    if not os.path.exists("welcome.json"):
+        return
+
+    with open("welcome.json", "r") as f:
+        try:
+            data = json.load(f)
+        except json.JSONDecodeError:
+            return
+
+    channel_id = data.get(str(member.guild.id))
+    if not channel_id:
+        return
+
+    channel = member.guild.get_channel(channel_id)
+    if not channel:
+        return
+
+    try:
+        # Ligne qui posait problème : vérifie bien l'alignement ici
+        msg = await channel.send(f"{member.mention}")
+        await asyncio.sleep(0.1)
+        await msg.delete()
+    except Exception as e:
+        print(f"Erreur welcome: {e}")
 
 @bot.command()
 @commands.has_permissions(manage_messages=True)
